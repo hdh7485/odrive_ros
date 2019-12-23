@@ -13,6 +13,8 @@ from std_msgs.msg import Float64, Int32
 from geometry_msgs.msg import Twist, TransformStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
+from control_msgs.msg import JointTrajectoryControllerState
+
 import std_srvs.srv
 
 #roslib.load_manifest('diagnostic_updater')
@@ -94,6 +96,9 @@ class ODriveNode(object):
         #self.calibrate_on_startup = get_param('~calibrate_on_startup', False)
         #self.engage_on_startup    = get_param('~engage_on_startup', False)
         
+        self.twist_control = get_param('~twist_control', False)
+        self.joint_control = get_param('~joint_control', True)
+
         self.has_preroll     = get_param('~use_preroll', True)
                 
         self.publish_current = get_param('~publish_current', True)
@@ -124,7 +129,11 @@ class ODriveNode(object):
         self.status_pub.publish(self.status)
         
         self.command_queue = Queue.Queue(maxsize=5)
-        self.vel_subscribe = rospy.Subscriber("/cmd_vel", Twist, self.cmd_vel_callback, queue_size=2)
+
+        if self.twist_control:
+            self.vel_subscribe = rospy.Subscriber("/cmd_vel", Twist, self.cmd_vel_callback, queue_size=2)
+        if self.joint_control:
+            self.joint_subscribe = rospy.Subscriber("/odrive_joint", JointTrajectoryControllerState, self.joint_callback, queue_size=2)
         
         self.publish_diagnostics = True
         if self.publish_diagnostics:
@@ -526,6 +535,17 @@ class ODriveNode(object):
         right_linear_val = int((forward + angular_to_linear) * self.m_s_to_value)
     
         return left_linear_val, right_linear_val
+
+    def joint_callback(self, msg):
+        left_linear_val = msg.desired.velocities[0]
+        right_linear_val = msg.desired.velocities[1]
+        try:
+            drive_command = ('drive', (left_linear_val, right_linear_val))
+            self.command_queue.put_nowait(drive_command)
+        except Queue.Full:
+            pass
+            
+        self.last_cmd_vel_time = rospy.Time.now()
 
     def cmd_vel_callback(self, msg):
         #rospy.loginfo("Received a /cmd_vel message!")
