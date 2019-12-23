@@ -110,6 +110,8 @@ class ODriveNode(object):
         self.odom_frame      = get_param('~odom_frame', "odom")
         self.base_frame      = get_param('~base_frame', "base_link")
         self.odom_calc_hz    = get_param('~odom_calc_hz', 10)
+
+        self.rpm_gain        = get_param('~rpm_gain', 1.0)
         
         rospy.on_shutdown(self.terminate)
 
@@ -562,7 +564,7 @@ class ODriveNode(object):
         #angular_to_linear = msg.angular.z * (wheel_track/2.0) 
         #left_linear_rpm  = (msg.linear.x - angular_to_linear) * m_s_to_erpm
         #right_linear_rpm = (msg.linear.x + angular_to_linear) * m_s_to_erpm
-        left_linear_val, right_linear_val = self.convert(msg.linear.x, msg.angular.z)
+        left_linear_val*self.rpm_gain, right_linear_val*self.rpm_gain = self.convert(msg.linear.x, msg.angular.z)
         
         # if wheel speed = 0, stop publishing after sending 0 once. #TODO add error term, work out why VESC turns on for 0 rpm
         
