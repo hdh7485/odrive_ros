@@ -93,8 +93,8 @@ class ODriveNode(object):
         self.tyre_circumference = float(get_param('~tyre_circumference', 0.341)) # used to translate velocity commands in m/s into motor rpm
         
         self.connect_on_startup   = get_param('~connect_on_startup', False)
-        #self.calibrate_on_startup = get_param('~calibrate_on_startup', False)
-        #self.engage_on_startup    = get_param('~engage_on_startup', False)
+        self.calibrate_on_startup = get_param('~calibrate_on_startup', False)
+        self.engage_on_startup    = get_param('~engage_on_startup', False)
         
         self.twist_control = get_param('~twist_control', False)
         self.joint_control = get_param('~joint_control', True)
@@ -112,6 +112,8 @@ class ODriveNode(object):
         self.odom_calc_hz    = get_param('~odom_calc_hz', 10)
 
         self.rpm_gain        = get_param('~rpm_gain', 1.0)
+
+        self.serial_number   = get_param('~serial_number', 'none')
         
         rospy.on_shutdown(self.terminate)
 
@@ -133,9 +135,9 @@ class ODriveNode(object):
         self.command_queue = Queue.Queue(maxsize=5)
 
         if self.twist_control:
-            self.vel_subscribe = rospy.Subscriber("/cmd_vel", Twist, self.cmd_vel_callback, queue_size=2)
+            self.vel_subscribe = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback, queue_size=2)
         if self.joint_control:
-            self.joint_subscribe = rospy.Subscriber("/odrive_joint", JointTrajectoryControllerState, self.joint_callback, queue_size=2)
+            self.joint_subscribe = rospy.Subscriber("odrive_joint", JointTrajectoryControllerState, self.joint_callback, queue_size=2)
         
         self.publish_diagnostics = True
         if self.publish_diagnostics:
@@ -438,10 +440,16 @@ class ODriveNode(object):
         
         self.driver = ODriveInterfaceAPI(logger=ROSLogger())
         rospy.loginfo("Connecting to ODrive...")
-        if not self.driver.connect(right_axis=self.axis_for_right):
-            self.driver = None
-            #rospy.logerr("Failed to connect.")
-            return (False, "Failed to connect.")
+        if self.serial_number == 'none':
+            if not self.driver.connect(right_axis=self.axis_for_right):
+                self.driver = None
+                #rospy.logerr("Failed to connect.")
+                return (False, "Failed to connect.")
+        else:
+            if not self.driver.connect(right_axis=self.axis_for_right, serial_number=self.serial_number):
+                self.driver = None
+                #rospy.logerr("Failed to connect.")
+                return (False, "Failed to connect.")
             
         #rospy.loginfo("ODrive connected.")
         
@@ -539,8 +547,8 @@ class ODriveNode(object):
         return left_linear_val, right_linear_val
 
     def joint_callback(self, msg):
-        left_linear_val = msg.desired.velocities[0]
-        right_linear_val = msg.desired.velocities[1]
+        left_linear_val = msg.desired.velocities[0] * self.rpm_gain
+        right_linear_val = -msg.desired.velocities[1] * self.rpm_gain
         try:
             drive_command = ('drive', (left_linear_val, right_linear_val))
             self.command_queue.put_nowait(drive_command)
@@ -564,7 +572,9 @@ class ODriveNode(object):
         #angular_to_linear = msg.angular.z * (wheel_track/2.0) 
         #left_linear_rpm  = (msg.linear.x - angular_to_linear) * m_s_to_erpm
         #right_linear_rpm = (msg.linear.x + angular_to_linear) * m_s_to_erpm
-        left_linear_val*self.rpm_gain, right_linear_val*self.rpm_gain = self.convert(msg.linear.x, msg.angular.z)
+        left_linear_val, right_linear_val = self.convert(msg.linear.x, msg.angular.z)
+        left_linear_val *= self.rpm_gain
+        right_linear_val *= self.rpm_gain
         
         # if wheel speed = 0, stop publishing after sending 0 once. #TODO add error term, work out why VESC turns on for 0 rpm
         

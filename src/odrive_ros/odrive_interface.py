@@ -55,12 +55,16 @@ class ODriveInterfaceAPI(object):
         # provided so simulator can update position
         pass
                     
-    def connect(self, port=None, right_axis=0, timeout=30):
+    def connect(self, port=None, right_axis=0, timeout=30, serial_number=None):
         if self.driver:
             self.logger.info("Already connected. Disconnecting and reconnecting.")
         try:
-            self.driver = odrive.find_any(timeout=timeout, logger=self.logger)
-            self.axes = (self.driver.axis0, self.driver.axis1)
+            if serial_number == None:
+                self.driver = odrive.find_any(timeout=timeout, logger=self.logger)
+                self.axes = (self.driver.axis0, self.driver.axis1)
+            else:
+                self.driver = odrive.find_any(timeout=timeout, logger=self.logger, serial_number=serial_number)
+                self.axes = (self.driver.axis0, self.driver.axis1)
         except:
             self.logger.error("No ODrive found. Is device powered?")
             return False
