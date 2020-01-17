@@ -132,7 +132,10 @@ class ODriveNode(object):
         self.status = "disconnected"
         self.status_pub.publish(self.status)
         
-        self.command_queue = Queue.Queue(maxsize=5)
+        self.command_queue = Queue.Queue(maxsize=2)
+
+        self.stop_flag = 0
+        self.stop_time = time.time()
 
         if self.twist_control:
             self.vel_subscribe = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback, queue_size=2)
@@ -369,7 +372,7 @@ class ODriveNode(object):
                     self.last_cmd_vel_time = time_now
                 # release motor after 10s stopped
                 if (time_now - self.last_cmd_vel_time).to_sec() > 10.0 and self.driver.engaged():
-                    self.driver.release() # and release            
+                    self.driver.release() # and release   
         except (ChannelBrokenException, ChannelDamagedException):
             rospy.logerr("ODrive USB connection failure in cmd_vel timeout." + traceback.format_exc(1))
             self.fast_timer_comms_active = False
@@ -420,7 +423,7 @@ class ODriveNode(object):
                     self.fast_timer_comms_active = False
 
             elif motor_command[0] == 'release':
-                pass
+                self.driver.release()
             # ?
             else:
                 pass
@@ -547,14 +550,36 @@ class ODriveNode(object):
         return left_linear_val, right_linear_val
 
     def joint_callback(self, msg):
-        left_linear_val = msg.desired.velocities[0] * self.rpm_gain
-        right_linear_val = -msg.desired.velocities[1] * self.rpm_gain
-        try:
-            drive_command = ('drive', (left_linear_val, right_linear_val))
-            self.command_queue.put_nowait(drive_command)
-        except Queue.Full:
-            pass
-            
+        if abs(msg.desired.velocities[0]) <= 0.001 and abs(msg.desired.velocities[1]) <= 0.001:
+            if not self.stop_flag:
+                self.stop_flag = 1
+                self.stop_time = time.time()
+            else:
+                if time.time() - self.stop_time > 1.5:
+                    try:
+                        drive_command = ('release', (0,0))
+                        self.command_queue.put_nowait(drive_command)
+                    except Queue.Full:
+                        pass
+                else:
+                    left_linear_val = msg.desired.velocities[0] * self.rpm_gain
+                    right_linear_val = -msg.desired.velocities[1] * self.rpm_gain
+                    try:
+                        drive_command = ('drive', (left_linear_val, right_linear_val))
+                        self.command_queue.put_nowait(drive_command)
+                    except Queue.Full:
+                        pass
+                    
+        else:
+            self.stop_flag = 0
+            left_linear_val = msg.desired.velocities[0] * self.rpm_gain
+            right_linear_val = -msg.desired.velocities[1] * self.rpm_gain
+            try:
+                drive_command = ('drive', (left_linear_val, right_linear_val))
+                self.command_queue.put_nowait(drive_command)
+            except Queue.Full:
+                pass
+                
         self.last_cmd_vel_time = rospy.Time.now()
 
     def cmd_vel_callback(self, msg):

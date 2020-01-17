@@ -252,6 +252,7 @@ class ODriveInterfaceAPI(object):
         
     def release(self):
         if not self.driver:
+            print(self.driver)
             self.logger.error("Not connected.")
             return False
         #self.logger.debug("Releasing.")
