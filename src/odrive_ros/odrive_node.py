@@ -562,8 +562,9 @@ class ODriveNode(object):
                     except Queue.Full:
                         pass
                 else:
-                    left_linear_val = msg.desired.velocities[0] * self.rpm_gain
-                    right_linear_val = -msg.desired.velocities[1] * self.rpm_gain
+                    #rad/s to rpm
+                    left_linear_val = msg.desired.velocities[0] / 0.104719755 * self.rpm_gain
+                    right_linear_val = -msg.desired.velocities[1] / 0.104719755 * self.rpm_gain
                     try:
                         drive_command = ('drive', (left_linear_val, right_linear_val))
                         self.command_queue.put_nowait(drive_command)
@@ -572,8 +573,10 @@ class ODriveNode(object):
                     
         else:
             self.stop_flag = 0
-            left_linear_val = msg.desired.velocities[0] * self.rpm_gain
-            right_linear_val = -msg.desired.velocities[1] * self.rpm_gain
+            left_linear_val = msg.desired.velocities[0] / 0.104719755 * self.rpm_gain
+            right_linear_val = -msg.desired.velocities[1] / 0.104719755 * self.rpm_gain
+            rospy.loginfo("{} {}".format(msg.desired.velocities[0] / 0.104719755, -msg.desired.velocities[1] / 0.104719755))
+                    
             try:
                 drive_command = ('drive', (left_linear_val, right_linear_val))
                 self.command_queue.put_nowait(drive_command)
