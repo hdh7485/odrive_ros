@@ -233,7 +233,7 @@ class ODriveNode(object):
     def main_loop(self):
         # Main control, handle startup and error handling
         # while a ROS timer will handle the high-rate (~50Hz) comms + odometry calcs
-        main_rate = rospy.Rate(1) # hz
+        main_rate = rospy.Rate(10) # hz
         # Start timer to run high-rate comms
         self.fast_timer = rospy.Timer(rospy.Duration(1/float(self.odom_calc_hz)), self.fast_timer)
         
@@ -243,7 +243,7 @@ class ODriveNode(object):
             try:
                 main_rate.sleep()
             except rospy.ROSInterruptException: # shutdown / stop ODrive??
-                break;
+                break
             
             # fast timer running, so do nothing and wait for any errors
             if self.fast_timer_comms_active:
