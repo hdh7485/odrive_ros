@@ -57,7 +57,7 @@ class ROSLogger(object):
 
 def get_param(name, default):
     val = rospy.get_param(name, default)
-    rospy.loginfo('  %s: %s', name, str(val))
+    #rospy.loginfo('  %s: %s', name, str(val))
     return val
 
 class ODriveNode(object):
@@ -243,7 +243,7 @@ class ODriveNode(object):
             try:
                 main_rate.sleep()
             except rospy.ROSInterruptException: # shutdown / stop ODrive??
-                break;
+                break
             
             # fast timer running, so do nothing and wait for any errors
             if self.fast_timer_comms_active:
@@ -265,6 +265,7 @@ class ODriveNode(object):
                     else:
                         # must have called connect service from another node
                         self.fast_timer_comms_active = True
+
                 except (ChannelBrokenException, ChannelDamagedException, AttributeError):
                     rospy.logerr("ODrive USB connection failure in main_loop.")
                     self.status = "disconnected"
@@ -284,6 +285,16 @@ class ODriveNode(object):
                 if not self.connect_driver(None)[0]:
                     rospy.logerr("Failed to connect.") # TODO: can we check for timeout here?
                     continue
+                else:
+                    self.odometry_update_enabled = False # disable odometry updates while we preroll
+                    rospy.loginfo('prerolling!')
+                    if not self.driver.preroll(wait=True):
+                        self.status = "preroll_fail"
+                        self.status_pub.publish(self.status)
+                        return (False, "Failed preroll.")
+                    self.status_pub.publish("ready")
+                    rospy.sleep(1)
+                    self.odometry_update_enabled = True
                     
                 if self.publish_diagnostics:
                     self.diagnostic_updater.setHardwareID(self.driver.get_version_string())

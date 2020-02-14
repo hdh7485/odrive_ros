@@ -167,9 +167,9 @@ class ODriveInterfaceAPI(object):
             
         #self.logger.info("Vbus %.2fV" % self.driver.vbus_voltage)
         
-        for i, axis in enumerate(self.axes):
-            self.logger.info("Index search preroll axis %d..." % i)
-            axis.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
+        # for i, axis in enumerate(self.axes):
+        #     self.logger.info("Index search preroll axis %d..." % i)
+        #     axis.requested_state = AXIS_STATE_ENCODER_INDEX_SEARCH
         
         if wait:
             for i, axis in enumerate(self.axes):
